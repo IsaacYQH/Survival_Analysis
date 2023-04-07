@@ -1,0 +1,82 @@
+---
+title: "KP_logRank"
+author: "Qihun Yang"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+## Data Preparation
+```{r pre}
+#install.packages("survival")
+library(survival)
+setwd("D:\\Code_Factory\\surv_anly\\1")
+ACTG175 <- read.table("ACTG175(speff2trial).txt", header = TRUE, sep = ',')
+# used to indicate that all subsequent variable names apply to the ACTG175 dataset
+attach(ACTG175)
+```
+
+## Q1: 
+1. Plot.
+
+(a) Draw a survival curve plot using the Kaplan-Meier method for the four treatment groups (i.e., \verb"arms"; $0=$ zidovudine, $1=$ zidovudine and didanosine, $2=$ zidovudine and zalcitabine, $3=$ didanosine). Compare the survival curves. What do you conclude?
+
+Use functions \verb"survfit" and \verb"plot".
+```{r Q1.1}
+km <- Surv(days, cens==1)
+# summary(survfit(km~arms))
+plot(survfit(km~arms),ylim = c(0.6,1), col=c("red","orange","blue","green"),
+     ylab = "survival probabilities", xlab="survival time in days")
+
+legend("topright",           #The legend is in the upper right corner
+       legend=c("zidovudine","zidovudine and didanosine","zidovudine and zalcitabine",
+                "didanosine"),        #content of legend
+       col=c("red","orange","blue","green"),         #color of legend
+       lty=1,lwd=2,                                  #size of legend
+       cex = 0.7, text.width = 380)
+```
+The plot indicates that subjects taken zidovudine have the significantly lowest rate of survival than other subjects. Subjects taken didanosine alone have a lower rate of survival than those combined didanosine with zidovudine. Two subjects seperately taken zidovudine and didanosine, zidovudine and zalcitabine have no significant difference.
+
+(b) From the Kaplan-Meier survival curve plot, can you obtain the median survival time for each of the four treatment groups, respectively? Why?
+
+No, we can't. Since the survival probabilities do not reach $0.5$ for all 4 subjects, Kaplan-Meier method is unable to do out-of-sample prediction.
+
+## Q2:
+2. Log-rank test.
+(a) Suppose we are interested in testing whether the four treatment groups have the same effect on the survival outcome. To accomplish this goal, we conduct a log rank test. What is the $p$-value of the log rank test? What do you conclude?
+
+Use functions \verb"survdiff" and \verb"plot".
+```{r Q2.1.1}
+#non-weighted log-rank test
+survdiff(km~arms)
+```
+
+The log rank statistic is highly significant with a p-value of
+$1\times10^{-10}$. Further, we can conduct log-rank test on $\verb"arms"=1,2,3$ whose similarity is obvious on the curves.
+```{r Q2.1.2}
+# use subset = group %in% c("group1", "group2") to do test only for a subset
+survdiff(km~arms, subset = arms %in% c(1,2,3))
+```
+
+The log rank statistic is not significant with a p-value of
+$0.4$. Thus, I deem that these three survival probabilities are identical.
+
+
+(b) Conduct a weighted log rank test that emphasizes early survival difference. What is the p-value of the weighted log rank test? What do you conclude?
+
+```{r Q2.2.1}
+#weighted log-rank test
+survdiff(km~arms, rho = 1)
+```
+The results of the test in which rho=1 yield a chi-square
+value of $53$ with a p-value of $2\times10^{-11}$, which shows a
+more significant effect of \verb"arms" on survival the non-weighted version.
+
+(c) Conduct a stratified log rank test, where we stratify the variables \verb"hemo", \verb"homo", and \verb"age" simultaneously. In particular, we divide \verb"age" into three categories " $\leq 20$ years old", "20 - 50 years old" and ">50 years old". What is the p-value of this stratified log rank test? What do you conclude?
+```{r Q2.3.1}
+#stratified log-rank test
+survdiff(km~arms + strata(hemo) + strata(homo) +
+           strata(cut(age, breaks = c(0,20, 50,max(age)))))
+```
+I use the function \verb"cut" to convert numeric variable \verb"age" into factor.
+
+The p-value of this stratified test is $2\times10^{-11}$, which is one fifth of the test without stratifying \verb"hemo", \verb"homo" and \verb"age" but still obtaining the same conclusion.
