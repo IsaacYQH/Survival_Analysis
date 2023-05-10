@@ -1,0 +1,166 @@
+---
+title: "Assignment 2: CoxPH"
+author: "Qihun Yang"
+date: "`r Sys.Date()`"
+output: pdf_document
+header-includes:
+  - \usepackage{amsmath}
+---
+## Data Preparation
+```{r pre}
+#install.packages("survival")
+library(survival)
+setwd("D:\\Code_Factory\\surv_anly\\2")
+fmh <- read.table("framingham.csv",sep = ",", header = T)[,-1]
+fmh$age2 <- (fmh$age^2)
+```
+
+Before answering the questions, I fit the 3 model first. Note that I need to specify the parameters \verb"time" and \verb"time2" treating \verb"age" as interval data to accouts for left truncation.
+```{r setup}
+Y1 = Surv(fmh$time_outcome, fmh$outcome==2)
+model1 = coxph(Y1 ~ cursmoke + female + totchol + age +
+               age2 + bmi + BPVar + heartrte + glucose, data = fmh)
+
+Y2 = Surv(fmh$time_outcome, fmh$outcome==2)
+model2 = coxph(Y2 ~ cursmoke + female + totchol + age +
+               age2 + bmi + BPVar + heartrte + glucose + 
+                 cursmoke * female, data = fmh)
+
+Y3 = Surv(fmh$age,fmh$age+fmh$time_outcome,fmh$outcome==2)
+model3 = coxph(Y3 ~ cursmoke + female + totchol + bmi + BPVar + 
+                 heartrte + glucose, data = fmh)
+```
+
+## Q1: 
+1. According to Model 1 and Model 3, what is the adjusted hazard ratio for smoking v.s. nonsmoking and its $99\%$ confidence interval? Comment on the results.
+
+```{r 1.1}
+summary(model1)
+summary(model3)
+```
+The column named \verb"exp(coef)" shows the adjusted hazard ratio. The adjusted hazard ratio for smoking v.s. nonsmoking can be read from the \verb"cursmoke" row. For Model 1, the adjusted hazard ratio is $1.841248$. For Model3, the value is $1.884824$. 
+
+99% CI is:
+```{r 1.2}
+# model1 99% CI
+l1 = exp(model1[["coefficients"]][["cursmoke"]] -
+           qnorm(1 - (1 - 0.99)/2) * sqrt(model1[["var"]][1,1]))
+u1 = exp(model1[["coefficients"]][["cursmoke"]] +
+           qnorm(1 - (1 - 0.99)/2) * sqrt(model1[["var"]][1,1]))
+print(paste0("Model 1 99% CI: [",as.character(l1) ,
+             ",", as.character(u1), "]"))
+
+# model3 99% CI
+l3 = exp(model3[["coefficients"]][["cursmoke"]] -
+           qnorm(1 - (1 - 0.99)/2) * sqrt(model1[["var"]][1,1]))
+u3 = exp(model3[["coefficients"]][["cursmoke"]] +
+           qnorm(1 - (1 - 0.99)/2) * sqrt(model1[["var"]][1,1]))
+print(paste0("Model 3 99% CI: [",as.character(l3) ,
+             ",", as.character(u3), "]"))
+```
+There is no significant difference between two estimation of hazard ratio $1.841248$ and $1.884824$, the standard errors of two estimation, $0.136181$ and $0.135889$ and their 99% CIs. Therefore, I infer that the modeling of the hazard ratio of smoking or not is basically equivalent in Model 1 and Model 3.
+
+## Q2:
+2. According to Model 2, what is the adjusted hazard ratio for smoking female v.s. smoking
+male and its 99% confidence interval? What is the adjusted hazard ratio for nonsmoking
+female v.s. nonsmoking male and its 99% confidence interval? Comment on the results.
+```{r 2.1}
+summary(model2)
+```
+Refer to EXAMPLE 3, P116 of textbook KK2012, the target harzard ratio can be calculated by:
+$$
+\widehat{HR}=\exp \left[\sum_{i=1}^{3} \hat{\beta}_{i}\left(X_{i}^{*}-X_{i}\right)\right]
+$$
+, where the three $X_i$ stand for variables \verb"cursmoke", \verb"female" and \verb"cursmoke"$\times$\verb"female".
+
+1. In the first case, the placebo subject:
+$$
+\boldsymbol{X}^{*}=(X_{1}^{*} =1,\ X_{2}^{*}=1,\ X_{3}^{*}=1 \times 1=1)
+$$
+Treated subject:
+$$
+\boldsymbol{X}=(X_{1}=1,\ X_{2}=0,\ X_{3}=1 \times 0 = 0)
+$$
+
+Hazard Ratio of the first case: 
+\begin{align}
+\widehat{HR}_1&=\exp \left[\hat{\beta_1}\times(1-1) +\hat{\beta_2}\times(1-0)+\hat{\beta_3}\times(1\times1-0\times0) \right]\\
+&=\exp \left[\hat{\beta_2}+\hat{\beta_3}\right]\\
+&=\exp \left[0.4168311\times(1-1) -0.5311659\times(1-0)+0.4333890\times(1\times1-0\times0) \right]\\
+&=0.9020232
+\end{align}
+
+By the covariance matrix provided by the model parameters, I can obtain the standard error of $HR_1$.
+```{r 2.2}
+est1 = model2[["coefficients"]][["female"]] + 
+  model2[["coefficients"]][["cursmoke:female"]]
+exp(est1)
+sd1 = sqrt(model2[["var"]][2,2] + 
+             model2[["var"]][10,10]+2*model2[["var"]][2,10])
+# model2 99% CI 1
+l2.1 = exp(est1 - qnorm(1 - (1 - 0.99)/2) * sd1)
+u2.1 = exp(est1 + qnorm(1 - (1 - 0.99)/2) * sd1)
+print(paste0("Model 2 99% CI 1: [",as.character(l2.1) ,
+             ",", as.character(u2.1), "]"))
+```
+
+2. In the second case, the placebo subject:
+$$
+\boldsymbol{X}^{*}=(X_{1}^{*} =0,\ X_{2}^{*}=1,\ X_{3}^{*}=0 \times 1=0)
+$$
+Treated subject:
+$$
+\boldsymbol{X}=(X_{1}=0,\ X_{2}=0,\ X_{3}=0 \times 0 = 0)
+$$
+
+Hazard Ratio of the second case: 
+
+\begin{align}
+\widehat{HR}_2&=\exp \left[\hat{\beta_1}\times(0-0) +\hat{\beta_2}\times(1-0)+\hat{\beta_3}\times(1\times0-0\times0) \right]\\
+&=\exp \hat{\beta_2}\\
+&=\exp (-0.5311659)\\
+&=0.5879191
+\end{align}
+
+
+By the covariance matrix provided by the model parameters, I can obtain the standard error of $HR_2$.
+```{r 2.3}
+est2 = model2[["coefficients"]][["female"]]
+exp(est2)
+sd2 = sqrt(model2[["var"]][2,2])
+# model2 99% CI 1
+l2.2 = exp(est2 - qnorm(1 - (1 - 0.99)/2) * sd2)
+u2.2 = exp(est2 + qnorm(1 - (1 - 0.99)/2) * sd2)
+print(paste0("Model 2 99% CI 1: [",as.character(l2.2)
+             , ",", as.character(u2.2), "]"))
+```
+
+Both CIs include 1, indicating that under 99% significance we can not infer that the risks of smoking female v.s. smoking male are different. The conclusion is same when considering nonsmoking female v.s. nonsmoking male. However, the point estimation of $HR$ in the first case is closer to $1$ than the second case. So the conclusion about the first case is more reliable.
+
+## Q3:
+3. Draw the adjusted survival curves using Model 1 for smoking subjects v.s. non-smoking
+subjects, where all other risk factors are set to the overall means respectively. Comment on
+the plot.
+
+According to the question, thhe pattern should be:
+```{r 3.1}
+# fit model 1 stratified by cursmoke to get the adjusted survival curves  
+model1s = coxph(Y1 ~ strata(cursmoke) + female + totchol + age +
+               age2 + bmi + BPVar + heartrte + glucose, data = fmh)
+
+pattern = data.frame(female = mean(fmh$female), totchol = mean(fmh$totchol),
+                     age = mean(fmh$age), age2 = mean(fmh$age2), bmi = mean(fmh$bmi),
+                     BPVar = mean(fmh$BPVar), heartrte = mean(fmh$heartrte),
+                     glucose = mean(fmh$glucose))
+
+
+summary(survfit(model1s, newdata = pattern))
+
+plot(survfit(model1s, newdata = pattern), conf.int=F,
+     lty = c("solid", "dashed"), col=c("black","grey"),
+     main = "Survival curves for cursmoke, adjusted for other's overall means",
+     ylim = c(0.75,1))
+legend("topright", c("nonsmoker", "smoker"), lty=c("solid","dashed"),
+       col=c("black","grey"))
+```
+After adjusting for the overall means, we can see from the graph that the survival curve of smokers is significantly decreasing faster than nonsmoker, indicating that smoking or not is a effective factor towards hypertension.
